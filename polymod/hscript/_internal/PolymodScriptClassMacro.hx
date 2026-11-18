@@ -71,6 +71,20 @@ class PolymodScriptClassMacro
   }
 
   /**
+   * @return An expression containing a mapping of each module to the types (classes, interfaces, enums, and typedefs) declared within it.
+   */
+  public static macro function listModulesList():ExprOf<Map<String, Array<String>>>
+  {
+    if (!onGenerateCallbackRegistered)
+    {
+      onGenerateCallbackRegistered = true;
+      haxe.macro.Context.onGenerate(onGenerate);
+    }
+
+    return macro polymod.hscript._internal.PolymodScriptClassMacro.fetchModulesList();
+  }
+
+  /**
    * @return An expression containing a map of each interface package name and the data for it needed for it to be constructed at runtime.
    */
   public static macro function listInterfaceImpls():ExprOf<Map<String, Array<Dynamic>>>
@@ -102,10 +116,12 @@ class PolymodScriptClassMacro
   static var onGenerateCallbackRegistered:Bool = false;
   static var onAfterTypingCallbackRegistered:Bool = false;
   static var packageEntries:Map<String, Array<String>> = [];
+  static var moduleEntries:Map<String, Array<String>> = [];
 
   static function onGenerate(allTypes:Array<haxe.macro.Type>)
   {
     packageEntries.clear();
+    moduleEntries.clear();
 
     // Reset these, since onGenerate persists across multiple builds.
     var abstractImplEntries:Array<Array<String>> = [];
@@ -125,6 +141,7 @@ class PolymodScriptClassMacro
 
           var classType:ClassType = t.get();
           var classPack:String = classType.pack.join('.');
+          var classModule:String = classType.module;
           var classPath:String = t.toString();
 
           if (classType.isInterface)
@@ -234,8 +251,15 @@ class PolymodScriptClassMacro
           }
 
           addPackageClass(classPack, classPath);
+          addModuleType(classModule, classPath);
+        case TEnum(t, _params):
+          var enumType:EnumType = t.get();
+          var enumPath:String = t.toString();
+          addPackageClass(enumType.pack.join('.'), enumPath);
+          addModuleType(enumType.module, enumPath);
         case TType(t, _params):
           var typedefPath:String = t.toString();
+          var typedefModule:String = t.get().module;
           var typedefTarget:Type = Context.followWithAbstracts(type);
 
           switch (typedefTarget)
@@ -257,6 +281,7 @@ class PolymodScriptClassMacro
 
               typedefEntries.push(entryData);
               addPackageClass(t.get().pack.join('.'), targetPath);
+              addModuleType(typedefModule, typedefPath);
             case TEnum(t, _params):
               var targetEnum:EnumType = t.get();
               var targetEnumPath:String = '${targetEnum.pack.concat([targetEnum.name]).join(".")}';
@@ -265,6 +290,7 @@ class PolymodScriptClassMacro
 
               typedefEntries.push(entryData);
               addPackageClass(targetEnum.pack.join('.'), targetEnumPath);
+              addModuleType(typedefModule, typedefPath);
             case TInst(t, _params):
               var targetClass:ClassType = t.get();
               var targetClassPath:String = '${targetClass.pack.concat([targetClass.name]).join(".")}';
@@ -273,6 +299,7 @@ class PolymodScriptClassMacro
 
               typedefEntries.push(entryData);
               addPackageClass(targetClass.pack.join('.'), targetClassPath);
+              addModuleType(typedefModule, typedefPath);
             default:
               // Unknown typedef target type?
               trace('TYPEDEF: ${typedefPath} -> ${typedefTarget}');
@@ -312,6 +339,7 @@ class PolymodScriptClassMacro
 
           abstractImplEntries.push(entryData);
           addPackageClass(abstractPack, abstractPath);
+          addModuleType(abstractType.module, abstractPath);
         default:
           continue;
       }
@@ -321,6 +349,7 @@ class PolymodScriptClassMacro
       abstractImpls: abstractImplEntries,
       typedefs: typedefEntries,
       packages: packageEntries,
+      modules: moduleEntries,
       interfaceEntries: interfaces,
       extendingInterfaces: classesExtendingInterfaces,
     };
@@ -606,6 +635,20 @@ class PolymodScriptClassMacro
     }
   }
 
+  static function addModuleType(moduleName:String, typePath:String):Void
+  {
+    if (moduleName == null || moduleName == '') return;
+    if (moduleName.startsWith('polymod.')) return;
+    if (typePath.endsWith('_Impl_')) return;
+
+    var list:Array<String> = moduleEntries.get(moduleName) ?? [];
+    if (!list.contains(typePath))
+    {
+      list.push(typePath);
+      moduleEntries.set(moduleName, list);
+    }
+  }
+
   static function fetchVarAccess(access:haxe.macro.Type.VarAccess):Null<String>
   {
     return switch (access)
@@ -723,6 +766,17 @@ class PolymodScriptClassMacro
     if (metaData.packages != null)
     {
       return metaData.packages;
+    }
+    return [];
+  }
+
+  public static function fetchModulesList():Map<String, Array<String>>
+  {
+    var metaData = fetchMetadata();
+
+    if (metaData.modules != null)
+    {
+      return metaData.modules;
     }
     return [];
   }

@@ -375,6 +375,27 @@ class PolymodScriptClass
     return _typedefs;
   }
 
+  static var _baseTypesByModule:Map<String, Array<String>>;
+
+  /**
+   * Defines a list of types (classes, interfaces, enums, and typedefs) that each module contains.
+   * Compiled at compile-time through a macro and lazily loaded here at runtime.
+   */
+  public static var baseTypesByModule(get, never):Map<String, Array<String>>;
+
+  static function get_baseTypesByModule():Map<String, Array<String>>
+  {
+    if (_baseTypesByModule == null)
+    {
+      _baseTypesByModule = new Map<String, Array<String>>();
+      for (mod => types in PolymodScriptClassMacro.listModulesList())
+      {
+        _baseTypesByModule.set(mod, types);
+      }
+    }
+    return _baseTypesByModule;
+  }
+  
   static var _baseClassesByPackage:Map<String, Array<String>>;
 
   /**
