@@ -641,10 +641,12 @@ class PolymodScriptClassMacro
     if (moduleName.startsWith('polymod.')) return;
     if (typePath.endsWith('_Impl_')) return;
 
+    var typeName:String = typePath.split('.').pop();
+
     var list:Array<String> = moduleEntries.get(moduleName) ?? [];
-    if (!list.contains(typePath))
+    if (!list.contains(typeName))
     {
-      list.push(typePath);
+      list.push(typeName);
       moduleEntries.set(moduleName, list);
     }
   }

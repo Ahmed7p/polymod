@@ -2291,11 +2291,40 @@ class Interp
    */
   static function resolveImportedClass(importedClass:ClassImport, ignoreEnums:Bool = false, isFieldImport:Bool = false):Bool
   {
-    // The path without the possibly included module name, which resolve methods disregard.
-    final modulelessPath:String = importedClass.pkg.slice(0, -1).concat([importedClass.name]).join('.');
-    var paths:Array<String> = [importedClass.fullPath, modulelessPath];
+    var paths:Array<String> = [importedClass.fullPath];
+
     // If this is a static field import, we only search for the host class
-    paths = isFieldImport ? [importedClass.pkg.join('.')] : paths;
+    if (isFieldImport)
+    {
+      paths = [importedClass.pkg.join('.')];
+
+      if (importedClass.pkg.length >= 2 && PolymodScriptClass.baseTypesByModule != null)
+      {
+        final subClassName:String = importedClass.pkg[importedClass.pkg.length - 1];
+        final modulePath:String = importedClass.pkg.slice(0, -1).join('.');
+        final moduleTypes:Null<Array<String>> = PolymodScriptClass.baseTypesByModule.get(modulePath);
+
+        if (moduleTypes != null && moduleTypes.contains(subClassName))
+        {
+          final basePkgPath:String = importedClass.pkg.slice(0, -2).join('.');
+          final resolvedHostPath:String = basePkgPath.length > 0 ? '$basePkgPath.$subClassName' : subClassName;
+          if (!paths.contains(resolvedHostPath)) paths.push(resolvedHostPath);
+        }
+      }
+    }
+    else if (importedClass.pkg.length > 0 && PolymodScriptClass.baseTypesByModule != null)
+    {
+      // Resolves `pkg.Module.Type` as `pkg.Type` in case the last segment is a module rather than a sub-package.
+      final modulelessPath:String = importedClass.pkg.slice(0, -1).concat([importedClass.name]).join('.');
+      final modulePath:String = importedClass.pkg.join('.');
+      final moduleTypes:Null<Array<String>> = PolymodScriptClass.baseTypesByModule.get(modulePath);
+
+      if (moduleTypes != null && moduleTypes.contains(importedClass.name))
+      {
+        if (!paths.contains(modulelessPath)) paths.push(modulelessPath);
+      }
+    }
+
     for (fullPath in paths)
     {
       if (PolymodScriptClass.importOverrides.exists(fullPath))
