@@ -2222,6 +2222,12 @@ class Interp
           return superClass.fieldRead(id);
         }
 
+        var oCls:String = Util.getTypeNameOf(_proxy.superClass);
+        if (PolymodScriptClass.blacklistedInstanceFieldsOf(oCls)?.contains(id))
+        {
+          return error(EBlacklistedField(id));
+        }
+
         if (inBypassAccessor)
           return Reflect.field(_proxy.superClass, id);
         else
